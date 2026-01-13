@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import type { LLMProvider, ContentBlock, ToolCall } from './llm/index.js';
+import type { LLMProvider, ContentBlock, ToolCall, Message } from './llm/index.js';
 import { Conversation } from './conversation.js';
 import { getAllTools, executeTool, requiresSequentialExecution } from './tools/index.js';
 import {
@@ -231,6 +231,26 @@ export class Agent {
   clearHistory(): void {
     this.conversation.clear();
     console.log(chalk.yellow('Conversation history cleared.'));
+  }
+
+  // Get all messages from conversation
+  getMessages(): Message[] {
+    return this.conversation.getMessages();
+  }
+
+  // Load messages into conversation (for session restore)
+  loadMessages(messages: Message[]): void {
+    this.conversation.clear();
+    for (const msg of messages) {
+      if (msg.role === 'user') {
+        if (typeof msg.content === 'string') {
+          this.conversation.addUserMessage(msg.content);
+        }
+      } else if (msg.role === 'assistant') {
+        this.conversation.addAssistantMessage(msg.content);
+      }
+    }
+    console.log(chalk.green(`Loaded ${messages.length} messages.`));
   }
 
   // Update security config at runtime

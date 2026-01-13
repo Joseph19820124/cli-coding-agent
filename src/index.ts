@@ -3,12 +3,14 @@ import chalk from 'chalk';
 import { config } from 'dotenv';
 import { createProvider } from './llm/index.js';
 import { Agent } from './agent.js';
+import { executeCommand, type CommandContext } from './commands.js';
+import { loadConfig, ensureStorageDir } from './storage.js';
 import type { SecurityConfig } from './security.js';
 
 // Load environment variables
 config();
 
-function getConfig() {
+async function getConfig() {
   const apiKey = process.env.OPENROUTER_API_KEY || '';
   if (!apiKey) {
     console.error(chalk.red('Error: OPENROUTER_API_KEY environment variable is required'));
@@ -16,38 +18,66 @@ function getConfig() {
     process.exit(1);
   }
 
-  const model = process.env.MODEL || 'anthropic/claude-sonnet-4';
+  // Load user config
+  const userConfig = await loadConfig();
 
-  // Security config from environment
+  const model = process.env.MODEL || userConfig.defaultModel || 'anthropic/claude-sonnet-4';
+
+  // Security config from environment or user config
   const securityConfig: Partial<SecurityConfig> = {
-    autoApproveSafe: process.env.AUTO_APPROVE_SAFE !== 'false',
-    autoApproveLow: process.env.AUTO_APPROVE_LOW === 'true',
-    autoApproveRead: process.env.AUTO_APPROVE_READ === 'true',
+    autoApproveSafe: process.env.AUTO_APPROVE_SAFE !== 'false' && (userConfig.autoApproveSafe ?? true),
+    autoApproveLow: process.env.AUTO_APPROVE_LOW === 'true' || (userConfig.autoApproveLow ?? false),
+    autoApproveRead: process.env.AUTO_APPROVE_READ === 'true' || (userConfig.autoApproveRead ?? false),
   };
 
   return { model, apiKey, securityConfig };
 }
 
 async function main() {
-  const { model, apiKey, securityConfig } = getConfig();
+  await ensureStorageDir();
+  const { model, apiKey, securityConfig } = await getConfig();
 
   console.log(chalk.bold.blue('\n  CLI Coding Agent'));
   console.log(chalk.dim(`  Provider: OpenRouter | Model: ${model}`));
   console.log(chalk.dim(`  Working directory: ${process.cwd()}`));
   console.log(chalk.green('  Security: ') + chalk.dim('Permission prompts enabled'));
-  console.log(chalk.dim('  Commands: help, tools, trust, clear, exit'));
+  console.log(chalk.dim('  Type /help for commands, or just start chatting'));
   console.log('');
 
   const llmProvider = createProvider({ apiKey, model });
   const agent = new Agent(llmProvider, securityConfig);
+
+  let currentSessionId: string | null = null;
+  let shouldExit = false;
 
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
 
+  // Command context
+  const ctx: CommandContext = {
+    agent,
+    currentSessionId,
+    setSessionId: (id: string | null) => {
+      currentSessionId = id;
+    },
+    exit: () => {
+      shouldExit = true;
+      rl.close();
+      process.exit(0);
+    },
+  };
+
   const prompt = () => {
-    rl.question(chalk.green('> '), async (input) => {
+    // Update context with current session id
+    ctx.currentSessionId = currentSessionId;
+
+    const promptStr = currentSessionId
+      ? chalk.green(`[${currentSessionId.slice(0, 8)}] > `)
+      : chalk.green('> ');
+
+    rl.question(promptStr, async (input) => {
       const trimmed = input.trim();
 
       if (!trimmed) {
@@ -55,77 +85,56 @@ async function main() {
         return;
       }
 
-      // Built-in commands
-      const command = trimmed.toLowerCase();
+      // Handle commands (starting with /)
+      if (trimmed.startsWith('/')) {
+        const result = await executeCommand(trimmed, ctx);
+        if (result.handled) {
+          if (!shouldExit) {
+            prompt();
+          }
+          return;
+        }
+      }
 
-      if (command === 'exit' || command === 'quit') {
+      // Handle legacy commands (without /)
+      const lowerInput = trimmed.toLowerCase();
+      if (['exit', 'quit'].includes(lowerInput)) {
         console.log(chalk.yellow('\nGoodbye!'));
         rl.close();
         process.exit(0);
       }
 
-      if (command === 'clear') {
-        agent.clearHistory();
+      if (lowerInput === 'help') {
+        await executeCommand('/help', ctx);
         prompt();
         return;
       }
 
-      if (command === 'trust') {
-        agent.setSecurityConfig({
-          autoApproveSafe: true,
-          autoApproveLow: true,
-          autoApproveRead: true,
-        });
-        console.log(chalk.yellow('Trust mode: Auto-approving safe, low-risk, and read operations.'));
+      if (lowerInput === 'clear') {
+        await executeCommand('/clear', ctx);
         prompt();
         return;
       }
 
-      if (command === 'untrust') {
-        agent.setSecurityConfig({
-          autoApproveSafe: true,
-          autoApproveLow: false,
-          autoApproveRead: false,
-        });
-        console.log(chalk.yellow('Strict mode: Requiring confirmation for most operations.'));
+      if (lowerInput === 'tools') {
+        await executeCommand('/tools', ctx);
         prompt();
         return;
       }
 
-      if (command === 'help') {
-        console.log(chalk.cyan('\nAvailable commands:'));
-        console.log('  exit, quit  - Exit the agent');
-        console.log('  clear       - Clear conversation history');
-        console.log('  trust       - Enable trust mode (fewer prompts)');
-        console.log('  untrust     - Enable strict mode (more prompts)');
-        console.log('  tools       - List available tools');
-        console.log('  help        - Show this help message');
-        console.log('');
+      if (lowerInput === 'trust') {
+        await executeCommand('/trust', ctx);
         prompt();
         return;
       }
 
-      if (command === 'tools') {
-        console.log(chalk.cyan('\nAvailable tools:'));
-        console.log(chalk.dim('  File Operations:'));
-        console.log('    read, write, edit');
-        console.log(chalk.dim('  Execution:'));
-        console.log('    bash');
-        console.log(chalk.dim('  Search:'));
-        console.log('    glob, grep');
-        console.log(chalk.dim('  Task Management:'));
-        console.log('    todo_write, create_plan');
-        console.log(chalk.dim('  User Interaction:'));
-        console.log('    ask_user');
-        console.log(chalk.dim('  Web:'));
-        console.log('    web_fetch');
-        console.log(chalk.dim('  Subagents:'));
-        console.log('    subagent (explore, search, analyze)');
-        console.log('');
+      if (lowerInput === 'untrust') {
+        await executeCommand('/untrust', ctx);
         prompt();
         return;
       }
 
+      // Process as chat message
       try {
         await agent.processMessage(trimmed);
       } catch (error) {

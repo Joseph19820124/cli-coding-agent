@@ -134,14 +134,59 @@ Detects sensitive files: `.env`, credentials, SSH keys, API tokens.
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `help` | Show available commands |
-| `tools` | List all available tools |
-| `trust` | Trust mode - fewer permission prompts |
-| `untrust` | Strict mode - more permission prompts |
-| `clear` | Clear conversation history |
-| `exit` / `quit` | Exit the agent |
+All commands start with `/` prefix:
+
+| Command | Aliases | Description |
+|---------|---------|-------------|
+| `/help` | `/h`, `/?` | Show available commands |
+| `/exit` | `/quit`, `/q` | Exit the agent |
+| `/clear` | `/c` | Clear conversation history |
+| `/save [name]` | `/s` | Save current session |
+| `/load <id>` | `/l` | Load a saved session |
+| `/sessions` | `/ls` | List saved sessions |
+| `/delete <id>` | `/rm` | Delete a saved session |
+| `/new` | `/n` | Start a new session |
+| `/trust` | - | Trust mode - fewer permission prompts |
+| `/untrust` | - | Strict mode - more permission prompts |
+| `/tools` | `/t` | List all available tools |
+| `/todos` | `/td` | Show current todo list |
+| `/status` | `/st` | Show current status |
+| `/config [key] [value]` | `/cfg` | View or set configuration |
+
+## Session Management
+
+Sessions are automatically saved to `~/.cli-agent/sessions/`.
+
+```
+> /save my-project
+Session saved: 20240115-143022-a1b2
+
+[20240115] > /sessions
+━━━ Saved Sessions ━━━
+  20240115-143022-a1b2 - my-project
+    1/15/2024, 2:30:22 PM | 12 messages
+
+> /load 20240115-143022-a1b2
+Loaded session: my-project
+  12 messages
+```
+
+## Configuration
+
+Configuration is stored in `~/.cli-agent/config.json`.
+
+```
+> /config
+━━━ Configuration ━━━
+  defaultModel: anthropic/claude-sonnet-4
+  autoApproveSafe: true
+  autoApproveLow: false
+  autoApproveRead: false
+  maxHistorySessions: 50
+
+> /config autoApproveLow true
+Config updated: autoApproveLow = true
+```
 
 ## Environment Variables
 
