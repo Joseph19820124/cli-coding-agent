@@ -170,6 +170,24 @@ export function assessToolRisk(
       // Asking user questions is safe
       return { allowed: true, riskLevel: 'safe', requiresConfirmation: false };
 
+    case 'web_fetch': {
+      const url = args.url as string;
+      return {
+        allowed: true,
+        riskLevel: 'low',
+        reason: `Fetch URL: ${url}`,
+        requiresConfirmation: true,
+      };
+    }
+
+    case 'create_plan':
+      // Plans require user approval anyway
+      return { allowed: true, riskLevel: 'safe', requiresConfirmation: false };
+
+    case 'subagent':
+      // Subagents are managed internally
+      return { allowed: true, riskLevel: 'safe', requiresConfirmation: false };
+
     default:
       return { allowed: true, riskLevel: 'low', requiresConfirmation: false };
   }

@@ -35,7 +35,7 @@ async function main() {
   console.log(chalk.dim(`  Provider: OpenRouter | Model: ${model}`));
   console.log(chalk.dim(`  Working directory: ${process.cwd()}`));
   console.log(chalk.green('  Security: ') + chalk.dim('Permission prompts enabled'));
-  console.log(chalk.dim('  Commands: exit, clear, trust, untrust'));
+  console.log(chalk.dim('  Commands: help, tools, trust, clear, exit'));
   console.log('');
 
   const llmProvider = createProvider({ apiKey, model });
@@ -98,7 +98,29 @@ async function main() {
         console.log('  clear       - Clear conversation history');
         console.log('  trust       - Enable trust mode (fewer prompts)');
         console.log('  untrust     - Enable strict mode (more prompts)');
+        console.log('  tools       - List available tools');
         console.log('  help        - Show this help message');
+        console.log('');
+        prompt();
+        return;
+      }
+
+      if (command === 'tools') {
+        console.log(chalk.cyan('\nAvailable tools:'));
+        console.log(chalk.dim('  File Operations:'));
+        console.log('    read, write, edit');
+        console.log(chalk.dim('  Execution:'));
+        console.log('    bash');
+        console.log(chalk.dim('  Search:'));
+        console.log('    glob, grep');
+        console.log(chalk.dim('  Task Management:'));
+        console.log('    todo_write, create_plan');
+        console.log(chalk.dim('  User Interaction:'));
+        console.log('    ask_user');
+        console.log(chalk.dim('  Web:'));
+        console.log('    web_fetch');
+        console.log(chalk.dim('  Subagents:'));
+        console.log('    subagent (explore, search, analyze)');
         console.log('');
         prompt();
         return;

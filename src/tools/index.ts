@@ -7,6 +7,9 @@ import { globTool, executeGlob } from './glob.js';
 import { grepTool, executeGrep } from './grep.js';
 import { todoWriteTool, executeTodoWrite } from './todo.js';
 import { askUserTool, executeAskUser } from './ask.js';
+import { webFetchTool, executeWebFetch } from './webfetch.js';
+import { subagentTool, executeSubagent } from './subagent.js';
+import { planTool, executeCreatePlan } from '../planner.js';
 
 // Tool executor type
 export type ToolExecutor = (args: Record<string, unknown>) => Promise<string>;
@@ -32,14 +35,32 @@ function registerTool(
 }
 
 // Initialize tools
+// File operations
 registerTool(readTool, executeRead);
 registerTool(writeTool, executeWrite);
 registerTool(editTool, executeEdit);
+
+// Execution
 registerTool(bashTool, executeBash);
+
+// Search
 registerTool(globTool, executeGlob);
 registerTool(grepTool, executeGrep);
+
+// Task management
 registerTool(todoWriteTool, executeTodoWrite);
+
+// User interaction (sequential)
 registerTool(askUserTool, executeAskUser, { requiresSequential: true });
+
+// Web
+registerTool(webFetchTool, executeWebFetch);
+
+// Planning (sequential - needs user approval)
+registerTool(planTool, executeCreatePlan, { requiresSequential: true });
+
+// Subagent (sequential - complex operations)
+registerTool(subagentTool, executeSubagent, { requiresSequential: true });
 
 // Get all tool definitions
 export function getAllTools(): ToolDefinition[] {
