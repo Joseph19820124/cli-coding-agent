@@ -162,6 +162,14 @@ export function assessToolRisk(
     case 'grep':
       return { allowed: true, riskLevel: 'safe', requiresConfirmation: false };
 
+    case 'todo_write':
+      // Todo management is safe - just internal tracking
+      return { allowed: true, riskLevel: 'safe', requiresConfirmation: false };
+
+    case 'ask_user':
+      // Asking user questions is safe
+      return { allowed: true, riskLevel: 'safe', requiresConfirmation: false };
+
     default:
       return { allowed: true, riskLevel: 'low', requiresConfirmation: false };
   }

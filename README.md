@@ -8,6 +8,9 @@ A CLI coding agent similar to Claude Code, powered by OpenRouter.
 - File operations (read, write, edit)
 - Shell command execution
 - Code search (glob, grep)
+- **Task management with todo_write**
+- **User interaction with ask_user**
+- **Parallel tool execution**
 - Conversation context
 - **Security: Permission prompts before executing tools**
 
@@ -29,6 +32,63 @@ cp .env.example .env
 npm start
 ```
 
+## Available Tools
+
+| Tool | Description | Risk Level |
+|------|-------------|------------|
+| `read` | Read file contents | SAFE (HIGH for sensitive files) |
+| `write` | Create/overwrite files | MEDIUM |
+| `edit` | Edit files with string replacement | LOW |
+| `bash` | Execute shell commands | MEDIUM (CRITICAL for dangerous commands) |
+| `glob` | Find files by pattern | SAFE |
+| `grep` | Search file contents | SAFE |
+| `todo_write` | Manage task list | SAFE |
+| `ask_user` | Ask user questions | SAFE |
+
+## Task Management (todo_write)
+
+The agent can track complex tasks using a built-in todo system:
+
+```
+> Help me refactor the authentication module
+
+━━━ Todo List ━━━
+  ○ #1 Analyze current auth implementation
+  ◐ #2 Create new auth service  (in progress)
+  ○ #3 Update API endpoints
+  ○ #4 Add tests
+  Progress: 0/4
+```
+
+## User Interaction (ask_user)
+
+The agent can ask clarifying questions:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  QUESTION FROM AGENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Which database would you prefer?
+
+  1. PostgreSQL (default)
+  2. MySQL
+  3. SQLite
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Your choice (number or text): 1
+```
+
+## Parallel Tool Execution
+
+When multiple independent operations are needed, the agent executes them in parallel for better performance:
+
+```
+[Executing 3 tools in parallel...]
+
+[Tool: glob] SAFE
+[Tool: grep] SAFE
+[Tool: read] SAFE
+```
+
 ## Security Features
 
 The agent includes built-in security protections:
@@ -42,7 +102,7 @@ All potentially risky operations require user confirmation:
 ### Risk Levels
 | Level | Color | Examples |
 |-------|-------|----------|
-| SAFE | Green | glob, grep |
+| SAFE | Green | glob, grep, todo_write, ask_user |
 | LOW | Blue | file edits |
 | MEDIUM | Yellow | file writes, bash commands |
 | HIGH | Red | reading .env files |
@@ -92,23 +152,6 @@ Detects and warns when accessing:
 - `meta-llama/llama-3.1-70b-instruct` - Llama 3.1 70B
 
 Full list: https://openrouter.ai/models
-
-## Usage Example
-
-```
-> Read the package.json file
-
-[Tool: read] MEDIUM
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  PERMISSION REQUEST
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Tool:  read
-  Risk:  SAFE
-  Args:  { "path": "package.json" }
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Allow? [y/N]: y
-  ✓ Approved
-```
 
 ## License
 

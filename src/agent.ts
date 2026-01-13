@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import type { LLMProvider, ContentBlock, ToolCall } from './llm/index.js';
 import { Conversation } from './conversation.js';
-import { getAllTools, executeTool } from './tools/index.js';
+import { getAllTools, executeTool, requiresSequentialExecution } from './tools/index.js';
 import {
   assessToolRisk,
   askConfirmation,
@@ -16,16 +16,23 @@ const SYSTEM_PROMPT = `You are a helpful coding assistant running in a CLI envir
 - Execute bash commands
 - Search for files using glob patterns
 - Search file contents using grep
+- Track tasks with todo_write
+- Ask the user questions with ask_user
 
 When the user asks you to do something:
-1. Think about what tools you need to use
-2. Use the tools to accomplish the task
-3. Report the results back to the user
+1. For complex tasks, use todo_write to create a task list first
+2. Use the appropriate tools to accomplish the task
+3. Mark todos as completed when done
+4. Report the results back to the user
 
 Be concise in your responses. When showing code, use markdown code blocks.
 Always verify your work by reading files after editing them if needed.
 
-IMPORTANT: The user must approve tool executions. If a tool is denied, explain what you were trying to do and ask if they want to proceed differently.`;
+When you need clarification or user input, use the ask_user tool.
+
+IMPORTANT: The user must approve tool executions. If a tool is denied, explain what you were trying to do and ask if they want to proceed differently.
+
+You can call multiple tools in parallel when they are independent of each other. This improves efficiency.`;
 
 export class Agent {
   private provider: LLMProvider;
@@ -94,14 +101,49 @@ export class Agent {
         this.conversation.addAssistantMessage(assistantContent);
       }
 
-      // Execute tool calls with security checks
+      // Execute tool calls with parallel support
       if (toolCalls.length > 0) {
-        for (const toolCall of toolCalls) {
-          const result = await this.executeToolWithSecurity(toolCall);
-          this.conversation.addToolResult(toolCall.id, result.output, result.denied);
-        }
+        await this.executeToolCallsWithParallel(toolCalls);
         console.log();
       }
+    }
+  }
+
+  private async executeToolCallsWithParallel(toolCalls: ToolCall[]): Promise<void> {
+    // Separate tools that can run in parallel from those that must run sequentially
+    const sequential: ToolCall[] = [];
+    const parallel: ToolCall[] = [];
+
+    for (const call of toolCalls) {
+      if (requiresSequentialExecution(call.name)) {
+        sequential.push(call);
+      } else {
+        parallel.push(call);
+      }
+    }
+
+    // Execute parallel tools concurrently (still need security checks)
+    if (parallel.length > 1) {
+      console.log(chalk.dim(`\n[Executing ${parallel.length} tools in parallel...]`));
+    }
+
+    // For parallel execution, we need to handle security approvals first
+    const parallelResults = await Promise.all(
+      parallel.map(async (toolCall) => {
+        const result = await this.executeToolWithSecurity(toolCall);
+        return { id: toolCall.id, ...result };
+      })
+    );
+
+    // Add parallel results to conversation
+    for (const result of parallelResults) {
+      this.conversation.addToolResult(result.id, result.output, result.denied);
+    }
+
+    // Execute sequential tools one by one
+    for (const toolCall of sequential) {
+      const result = await this.executeToolWithSecurity(toolCall);
+      this.conversation.addToolResult(toolCall.id, result.output, result.denied);
     }
   }
 
@@ -148,11 +190,13 @@ export class Agent {
     try {
       const result = await executeTool(name, args);
 
-      // Display result (truncated)
-      const displayResult = result.length > 500
-        ? result.substring(0, 500) + '\n... (truncated)'
-        : result;
-      console.log(chalk.dim(displayResult));
+      // Display result (truncated) - skip for todo_write as it displays itself
+      if (name !== 'todo_write') {
+        const displayResult = result.length > 500
+          ? result.substring(0, 500) + '\n... (truncated)'
+          : result;
+        console.log(chalk.dim(displayResult));
+      }
 
       return { output: result, denied: false };
     } catch (error) {
